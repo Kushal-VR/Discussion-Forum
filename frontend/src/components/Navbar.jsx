@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import ProfileView from "./ProfileView.js"; // Import ProfileView component
+import ProfileView from "./ProfileView.js"; 
 import { toggle } from "../context/sidebarSlice";
 import Hamburger from "../icons/Hamburger";
 import Cancel from "../icons/Cancel";

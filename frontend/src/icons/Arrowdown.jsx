@@ -1,38 +1,49 @@
-import axios from "axios";
-import React from "react";
+import apiClient from "../utils/apiClient";
+import React, { useState } from "react";
+import { useQueryClient } from "react-query";
 
-const Arrowdown = ({ id }) => {
-  const userId = JSON.parse(localStorage.getItem("user"))._id;
+const Arrowdown = ({ id, isActive }) => {
+  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const storedUser = JSON.parse(localStorage.getItem("user"));
+  const userId = storedUser?._id;
 
   const handleClick = async (e) => {
     e.preventDefault();
+    if (!userId || loading) return;
+
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/downvote/${id}`,
-        {
-          userId,
-        }
-      );
-      console.log(res.status);
+      setLoading(true);
+      const res = await apiClient.post(`/api/posts/${id}/downvote`, {
+        userId,
+      });
       if (res.status === 200) {
-        alert("downvoted successfully");
-      } else {
-        alert("You have already downvoted");
+        queryClient.invalidateQueries("getAllQuestions");
+        queryClient.invalidateQueries("getMyQuestions");
       }
     } catch (err) {
-      console.log(err);
-      alert("You have already downvoted");
+      if (err?.response?.status === 400) {
+        alert(err.response.data?.message || "You have already downvoted");
+      } else {
+        console.error(err);
+        alert("Failed to downvote. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
+
   return (
     <svg
       onClick={handleClick}
       xmlns="http://www.w3.org/2000/svg"
-      fill="none"
+      fill={isActive ? "currentColor" : "none"}
       viewBox="0 0 24 24"
       strokeWidth={1.5}
       stroke="currentColor"
-      className="w-4 h-4 md:w-5 md:h-5 cursor-pointer dark:text-white"
+      className={`w-4 h-4 md:w-5 md:h-5 cursor-pointer ${
+        isActive ? "text-red-500" : "dark:text-white text-gray-700"
+      } ${loading ? "opacity-60 pointer-events-none" : ""}`}
     >
       <path
         strokeLinecap="round"

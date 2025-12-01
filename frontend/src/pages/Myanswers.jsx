@@ -15,17 +15,12 @@ const Myanswers = () => {
 
   // Fetch questions
   const { isLoading, data, error } = useQuery("getMyQuestions", () =>
-    newRequests
-      .get(`${process.env.REACT_APP_BACKEND_URL}/my-questions/${id}`)
-      .then((res) => res.data)
+    newRequests.get(`/my-questions/${id}`).then((res) => res.data)
   );
 
   // Delete question mutation
   const deleteMutation = useMutation(
-    (questionId) =>
-      newRequests.delete(
-        `${process.env.REACT_APP_BACKEND_URL}/questions/${questionId}`
-      ),
+    (questionId) => newRequests.delete(`/questions/${questionId}`),
     {
       onSuccess: () => {
         queryClient.invalidateQueries("getMyQuestions"); // Refetch data after deletion
@@ -36,9 +31,7 @@ const Myanswers = () => {
   // Handle reply deletion
   const handleDeleteReply = async (questionId, replyId) => {
     try {
-      await newRequests.delete(
-        `${process.env.REACT_APP_BACKEND_URL}/replies/${replyId}`
-      );
+      await newRequests.delete(`/replies/${replyId}`);
       // Invalidate the query to refetch data after deletion
       queryClient.invalidateQueries("getMyQuestions");
     } catch (error) {
@@ -85,11 +78,21 @@ const Myanswers = () => {
           >
             <div className="w-full bg-purple-100 dark:bg-[#1E212A] p-4 md:p-5 rounded-lg shadow-md flex text-black dark:text-white items-start gap-5">
               <div className="left-section space-y-1 text-center">
-                <Arrowup id={question._id} />
+                <Arrowup
+                  id={question._id}
+                  isActive={question?.upvote?.some(
+                    (u) => u === id || u?._id === id
+                  )}
+                />
                 <h3 className="text-sm md:text-base ">
                   {question?.upvote?.length || 0}
                 </h3>
-                <Arrowdown id={question._id} />
+                <Arrowdown
+                  id={question._id}
+                  isActive={question?.downvote?.some(
+                    (u) => u === id || u?._id === id
+                  )}
+                />
               </div>
               <div className="right-section w-full">
                 <h1 className="text-base md:text-lg text-black dark:text-white">{question?.question}</h1>
@@ -99,7 +102,7 @@ const Myanswers = () => {
                 {question.image ? (
                   <div className="mt-4">
                     <img
-                      src={`${process.env.REACT_APP_BACKEND_URL}/questions/${question._id}/image`}
+                    src={`${process.env.REACT_APP_API_URL}/questions/${question._id}/image`}
                       alt="Question Attachment"
                       className="w-full max-h-60 object-cover rounded-md"
                     />

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { BsCamera } from "react-icons/bs";
 import axios from "axios";
+import apiClient from "../utils/apiClient";
 import { useNavigate } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -69,15 +70,11 @@ const AskQuestion = () => {
 
     // Send the request
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/ask-question`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const res = await apiClient.post("/ask-question", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
       toast.dismiss(uploadToastId);
 
       if (res.status === 201) {

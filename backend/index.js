@@ -5,20 +5,34 @@ import Question from "./model/question.js";
 import Reply from "./model/reply.js";
 import cors from "cors";
 import { Server } from "socket.io";
-import bcrypt from 'bcryptjs';
+import bcrypt from "bcryptjs";
 import multer from "multer";
 import Message from "./model/message.js";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import MaxHeap from "./utils/dsa/maxHeap.js";
+import {
+  invertedIndex,
+  buildIndexFromQuestions,
+  indexQuestionInverted,
+  removeQuestionFromIndex,
+} from "./utils/dsa/invertedIndex.js";
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+let indexInitialized = false;
 
 app.use(express.json());
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://discuza.in"], // Use an array for multiple origins
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5000",
+      "http://10.0.2.2:5000", // Android emulator to backend
+      "capacitor://localhost", // Capacitor mobile apps
+      "https://discuza.in",
+    ],
     credentials: true,
   })
 );
@@ -169,6 +183,15 @@ app.post("/ask-question", upload.single("image"), async (req, res) => {
 
     // Save the question in the database
     const savedQuestion = await newQuestion.save();
+
+    // Keep inverted index updated
+    try {
+      await buildIndexFromQuestions(Question);
+      indexQuestionInverted(savedQuestion);
+    } catch (e) {
+      console.error("Error updating inverted index after ask-question:", e);
+    }
+
     return res.status(201).json(savedQuestion);
   } catch (error) {
     console.error("Error saving question:", error.message);
@@ -290,28 +313,76 @@ app.get("/questions", async (req, res) => {
   }
 });
 
+// Shared vote handler logic
+const applyVote = async (questionId, userId, type) => {
+  const question = await Question.findById(questionId);
+  if (!question) {
+    throw new Error("Question not found");
+  }
+
+  const hasUpvoted = question.upvote.some(
+    (id) => id.toString() === userId.toString()
+  );
+  const hasDownvoted = question.downvote.some(
+    (id) => id.toString() === userId.toString()
+  );
+
+  if (type === "upvote") {
+    if (hasUpvoted) {
+      const error = new Error("You have already upvoted");
+      error.statusCode = 400;
+      throw error;
+    }
+    // Remove previous downvote if any, then add upvote
+    if (hasDownvoted) {
+      question.downvote = question.downvote.filter(
+        (id) => id.toString() !== userId.toString()
+      );
+    }
+    question.upvote.push(userId);
+  } else if (type === "downvote") {
+    if (hasDownvoted) {
+      const error = new Error("You have already downvoted");
+      error.statusCode = 400;
+      throw error;
+    }
+    // Remove previous upvote if any, then add downvote
+    if (hasUpvoted) {
+      question.upvote = question.upvote.filter(
+        (id) => id.toString() !== userId.toString()
+      );
+    }
+    question.downvote.push(userId);
+  }
+
+  await question.save();
+
+  const populated = await Question.findById(questionId)
+    .populate("replies")
+    .populate({
+      path: "replies",
+      populate: {
+        path: "author",
+        model: "DiscussionUser",
+      },
+    })
+    .populate("userId");
+
+  return populated;
+};
+
+// Legacy vote endpoints
 app.post("/upvote/:id", async (req, res) => {
   const { id: questionId } = req.params;
   const { userId } = req.body;
   try {
-    const findQuestion = await Question.findById(questionId);
-    if (findQuestion.upvote.includes(userId)) {
-      return res.status(400).json({ message: "You have already upvoted" });
-    }
-
-    if (findQuestion.downvote.includes(userId)) {
-      const downvote = await findQuestion.updateOne({
-        $pull: { downvote: userId },
-      });
-      return res.status(200).json({ message: "Response updated successfully" });
-    }
-
-    const upvote = await findQuestion.updateOne({
-      $push: { upvote: userId },
-    });
-    return res.status(200).json(upvote);
+    const updated = await applyVote(questionId, userId, "upvote");
+    return res.status(200).json(updated);
   } catch (error) {
-    res.status(500).json({ message: "Server Error" });
+    console.error("Error in /upvote:", error);
+    return res
+      .status(error.statusCode || 500)
+      .json({ message: error.message || "Server Error" });
   }
 });
 
@@ -319,24 +390,42 @@ app.post("/downvote/:id", async (req, res) => {
   const { id: questionId } = req.params;
   const { userId } = req.body;
   try {
-    const findQuestion = await Question.findById(questionId);
-    if (findQuestion.downvote.includes(userId)) {
-      return res.status(400).json({ message: "You have already downvoted" });
-    }
-
-    if (findQuestion.upvote.includes(userId)) {
-      const upvote = await findQuestion.updateOne({
-        $pull: { upvote: userId },
-      });
-      return res.status(200).json({ message: "Response updated successfully" });
-    }
-
-    const downvote = await findQuestion.updateOne({
-      $push: { downvote: userId },
-    });
-    return res.status(200).json(downvote);
+    const updated = await applyVote(questionId, userId, "downvote");
+    return res.status(200).json(updated);
   } catch (error) {
-    res.status(500).json({ message: "Server Error" });
+    console.error("Error in /downvote:", error);
+    return res
+      .status(error.statusCode || 500)
+      .json({ message: error.message || "Server Error" });
+  }
+});
+
+// New REST-style vote endpoints
+app.post("/api/posts/:id/upvote", async (req, res) => {
+  const { id: questionId } = req.params;
+  const { userId } = req.body;
+  try {
+    const updated = await applyVote(questionId, userId, "upvote");
+    return res.status(200).json(updated);
+  } catch (error) {
+    console.error("Error in /api/posts/:id/upvote:", error);
+    return res
+      .status(error.statusCode || 500)
+      .json({ message: error.message || "Server Error" });
+  }
+});
+
+app.post("/api/posts/:id/downvote", async (req, res) => {
+  const { id: questionId } = req.params;
+  const { userId } = req.body;
+  try {
+    const updated = await applyVote(questionId, userId, "downvote");
+    return res.status(200).json(updated);
+  } catch (error) {
+    console.error("Error in /api/posts/:id/downvote:", error);
+    return res
+      .status(error.statusCode || 500)
+      .json({ message: error.message || "Server Error" });
   }
 });
 
@@ -378,6 +467,14 @@ app.delete('/questions/:id', async (req, res) => {
     if (!result) {
       return res.status(404).send({ error: 'Question not found' });
     }
+
+    // Remove from inverted index
+    try {
+      removeQuestionFromIndex(id);
+    } catch (e) {
+      console.error("Error removing question from inverted index:", e);
+    }
+
     res.status(200).send({ message: 'Question deleted successfully' });
   } catch (err) {
     console.error(err);
@@ -430,6 +527,93 @@ app.get("/find/:topic", async (req, res) => {
     return res.status(200).json(questions);
   } catch (error) {
     console.error("Error finding questions:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
+// Search endpoint using Inverted Index (no full collection scan)
+app.get("/api/search", async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || !q.trim()) {
+      return res.status(200).json([]);
+    }
+
+    // Lazily build index on first use
+    if (!indexInitialized) {
+      await buildIndexFromQuestions(Question);
+      indexInitialized = true;
+    }
+
+    const matchingIds = invertedIndex.search(q);
+
+    if (!matchingIds.length) {
+      return res.status(200).json([]);
+    }
+
+    const questions = await Question.find({
+      _id: { $in: matchingIds },
+    })
+      .populate("replies")
+      .populate({
+        path: "replies",
+        populate: {
+          path: "author",
+          model: "DiscussionUser",
+        },
+      })
+      .populate("userId")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json(questions);
+  } catch (error) {
+    console.error("Error in /api/search:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
+// Trending posts using Max-Heap
+// score = (likes * 2) + commentsCount
+app.get("/api/trending", async (req, res) => {
+  try {
+    const questions = await Question.find({})
+      .populate("replies")
+      .populate({
+        path: "replies",
+        populate: {
+          path: "author",
+          model: "DiscussionUser",
+        },
+      })
+      .populate("userId");
+
+    const scoreForQuestion = (q) => {
+      const likes = Array.isArray(q.upvote) ? q.upvote.length : 0;
+      const commentsCount = Array.isArray(q.replies) ? q.replies.length : 0;
+      return likes * 2 + commentsCount;
+    };
+
+    const heap = new MaxHeap((a, b) => {
+      const scoreA = scoreForQuestion(a);
+      const scoreB = scoreForQuestion(b);
+      if (scoreA > scoreB) return 1;
+      if (scoreA < scoreB) return -1;
+      return 0;
+    });
+
+    questions.forEach((q) => heap.push(q));
+
+    const limit = Math.min(5, heap.size());
+    const trending = [];
+    for (let i = 0; i < limit; i += 1) {
+      const item = heap.pop();
+      if (item) trending.push(item);
+    }
+
+    return res.status(200).json(trending);
+  } catch (error) {
+    console.error("Error in /api/trending:", error);
     res.status(500).json({ message: "Server Error" });
   }
 });

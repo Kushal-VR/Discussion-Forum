@@ -1,8 +1,4 @@
-import axios from "axios";
+import apiClient from "./apiClient";
 
-const newRequests = axios.create({
-  baseURL: `${process.env.REACT_APP_BACKEND_URL}/api/`,
-  withCredentials: true,
-});
-
-export default newRequests;
+// Backwards-compatible export so existing imports using `newRequest` keep working.
+export default apiClient;

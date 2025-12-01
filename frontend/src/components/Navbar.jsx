@@ -10,27 +10,6 @@ import Dark from "../icons/Dark";
 import Light from "../icons/Light";
 import logo from "../images/logoname.png";
 
-const discussionTopics = [
-  "Technology",
-  "Climate",
-  "Space exploration",
-  "AI and ethics",
-  "Social media",
-  "Mental health",
-  "Education",
-  "Health",
-  "Culture",
-  "Politics",
-  "Sports",
-  "Public opinion",
-  "History",
-  "Economy",
-  "Business",
-  "Science",
-  "Philosophy",
-  "Art",
-];
-
 const Navbar = () => {
   const open = useSelector((state) => state.sidebar.open);
   const dark = useSelector((state) => state.theme.isDark);
@@ -38,14 +17,6 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-
-  const handleChange = (e) => {
-    const query = e.target.value.toLowerCase();
-    const filteredTopics = discussionTopics.filter((topic) =>
-      topic.toLowerCase().includes(query)
-    );
-    console.log("Filtered Topics:", filteredTopics);
-  };
 
   const user = JSON.parse(localStorage.getItem("user"));
 

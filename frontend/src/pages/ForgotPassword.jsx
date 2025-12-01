@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import apiClient from "../utils/apiClient";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useNavigate } from "react-router-dom";
@@ -16,10 +16,7 @@ const ForgotPassword = () => {
   const handleSendOtp = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/send-reset-otp`,
-        { email }
-      );
+      const res = await apiClient.post("/send-reset-otp", { email });
       if (res.status === 200) {
         toast.success("OTP sent to your email");
         setStep(2); // Move to OTP verification step
@@ -36,10 +33,7 @@ const ForgotPassword = () => {
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/verify-reset-otp`,
-        { email, otp }
-      );
+      const res = await apiClient.post("/verify-reset-otp", { email, otp });
       if (res.status === 200) {
         toast.success("OTP verified. You can reset your password now.");
         setStep(3); // Move to password reset step
@@ -60,10 +54,10 @@ const ForgotPassword = () => {
       return;
     }
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/reset-password`,
-        { email, newPassword }
-      );
+      const res = await apiClient.post("/reset-password", {
+        email,
+        newPassword,
+      });
       if (res.status === 200) {
         toast.success("Password reset successfully. Please login.");
         navigate("/login");

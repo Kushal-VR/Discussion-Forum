@@ -10,23 +10,90 @@ import { useParams } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import Loading from "./Loading";
 import NothingHere from "./NothingHere";
+import { mergeSort } from "../utils/dsa/mergeSort";
 
 const Content = () => {
   const { topic } = useParams();
   const [openId, setOpenId] = React.useState([]);
   const [answer, setAnswer] = React.useState("");
+  const [sortBy, setSortBy] = React.useState("newest");
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [posts, setPosts] = React.useState([]);
+  const [trending, setTrending] = React.useState([]);
 
-  const { isLoading, data } = useQuery("getAllQuestions", () => {
-    if (topic) {
-      return newRequests
-        .get(`${process.env.REACT_APP_BACKEND_URL}/find/${topic}`)
-        .then((res) => res.data);
-    } else {
-      return newRequests
-        .get(`${process.env.REACT_APP_BACKEND_URL}/questions`)
-        .then((res) => res.data);
+  const storedUser = JSON.parse(localStorage.getItem("user"));
+  const currentUserId = storedUser?._id;
+
+  const { isLoading } = useQuery(
+    ["getAllQuestions", topic],
+    async () => {
+      if (searchQuery.trim()) {
+        const res = await newRequests.get(
+          `/api/search?q=${encodeURIComponent(searchQuery)}`
+        );
+        return res.data;
+      }
+      if (topic) {
+        const res = await newRequests.get(`/find/${topic}`);
+        return res.data;
+      }
+      const res = await newRequests.get("/questions");
+      return res.data;
+    },
+    {
+      onSuccess: (data) => {
+        if (Array.isArray(data)) {
+          setPosts(data);
+        } else {
+          setPosts([]);
+        }
+      },
     }
-  });
+  );
+
+  React.useEffect(() => {
+    const fetchTrending = async () => {
+      try {
+        const res = await newRequests.get("/api/trending");
+        setTrending(Array.isArray(res.data) ? res.data : []);
+      } catch (e) {
+        console.error("Error fetching trending posts:", e);
+      }
+    };
+    fetchTrending();
+  }, []);
+
+  const getSortedPosts = () => {
+    const arr = Array.isArray(posts) ? posts : [];
+    return mergeSort(arr, (a, b) => {
+      if (sortBy === "newest") {
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      }
+      if (sortBy === "oldest") {
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      }
+      if (sortBy === "mostLikes") {
+        const aLikes = Array.isArray(a.upvote) ? a.upvote.length : 0;
+        const bLikes = Array.isArray(b.upvote) ? b.upvote.length : 0;
+        return bLikes - aLikes;
+      }
+      if (sortBy === "mostComments") {
+        const aComments = Array.isArray(a.replies) ? a.replies.length : 0;
+        const bComments = Array.isArray(b.replies) ? b.replies.length : 0;
+        return bComments - aComments;
+      }
+      return 0;
+    });
+  };
+
+  const handleSearch = () => {
+    // Trigger refetch by changing key via searchQuery state
+    // (react-query depends on ["getAllQuestions", topic])
+    // State change will cause the query function to use searchQuery
+    setPosts([]);
+  };
+
+  const sortedPosts = getSortedPosts();
 
   if (isLoading) return <Loading />;
 
@@ -36,8 +103,56 @@ const Content = () => {
     md:gap-8 my-8 "
     >
       <Toaster />
-      {Array.isArray(data) && data.length > 0 ? (
-        data.map((question, index) => {
+
+      {/* Search + Sort controls */}
+      <div className="w-[96%] md:w-[80%] mx-12 mb-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+        <div className="flex w-full md:w-2/3 gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search questions..."
+            className="flex-1 h-10 px-3 rounded border border-gray-300 outline-none"
+          />
+          <button
+            onClick={handleSearch}
+            className="px-4 py-2 rounded bg-purple-600 text-white text-sm"
+          >
+            Search
+          </button>
+        </div>
+        <div className="flex w-full md:w-1/3 justify-end">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="h-10 px-3 rounded border border-gray-300 text-sm w-full md:w-auto"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="mostLikes">Most Liked</option>
+            <option value="mostComments">Most Commented</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Trending section */}
+      {trending.length > 0 && (
+        <div className="w-[96%] md:w-[80%] mx-12 mb-6 bg-yellow-50 dark:bg-slate-700 p-3 rounded-md shadow">
+          <h2 className="text-sm md:text-base font-semibold mb-2">
+            🔥 Trending Posts
+          </h2>
+          <ul className="list-disc list-inside text-xs md:text-sm">
+            {trending.map((q) => (
+              <li key={q._id} className="mb-1">
+                {q.question}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {Array.isArray(sortedPosts) && sortedPosts.length > 0 ? (
+        sortedPosts.map((question, index) => {
           return (
             <div
               key={index}
@@ -50,11 +165,21 @@ const Content = () => {
                p-4 md:p-5 rounded-lg shadow-md flex items-start gap-5"
               >
                 <div className="left-section space-y-1 text-center">
-                  <Arrowup id={question._id} />
+                  <Arrowup
+                    id={question._id}
+                    isActive={question?.upvote?.some(
+                      (u) => u === currentUserId || u?._id === currentUserId
+                    )}
+                  />
                   <h3 className="text-sm md:text-base">
                     {question?.upvote?.length || 0}
                   </h3>
-                  <Arrowdown id={question._id} />
+                  <Arrowdown
+                    id={question._id}
+                    isActive={question?.downvote?.some(
+                      (u) => u === currentUserId || u?._id === currentUserId
+                    )}
+                  />
                 </div>
                 <div className="right-section w-full">
                   <h1 className="text-base md:text-lg dark:text-white">
@@ -66,7 +191,7 @@ const Content = () => {
                   {question.image && (
                     <div className="mt-4">
                       <img
-                        src={`${process.env.REACT_APP_BACKEND_URL}/questions/${question._id}/image`}
+                        src={`${process.env.REACT_APP_API_URL}/questions/${question._id}/image`}
                         alt="Question Attachment"
                         className="w-full max-h-60 object-cover rounded-md"
                       />

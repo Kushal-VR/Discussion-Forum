@@ -1,4 +1,4 @@
-import axios from "axios";
+import apiClient from "../utils/apiClient";
 import React, { useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -25,10 +25,7 @@ const Login = () => {
     };
 
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/login`,
-        user
-      );
+      const res = await apiClient.post("/login", user);
     
       if (res.status === 200) {
         localStorage.setItem("user", JSON.stringify(res.data));

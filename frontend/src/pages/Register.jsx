@@ -1,4 +1,4 @@
-import axios from "axios";
+import apiClient from "../utils/apiClient";
 import React from "react";
 import upload from "../utils/upload";
 import { toast, Toaster } from "react-hot-toast";
@@ -32,10 +32,7 @@ const Register = () => {
     console.log("User data:", user);
 
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/send-otp`,
-        user
-      );
+      const res = await apiClient.post("/send-otp", user);
       console.log("Response status:", res.status);
       console.log("Response data:", res.data);
     

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import axios from "axios";
+import apiClient from "../utils/apiClient";
 import { toast, Toaster } from "react-hot-toast";
 
 const VerifyOtp = () => {
@@ -21,14 +21,11 @@ const VerifyOtp = () => {
     e.preventDefault();
 
     try {
-      const res = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/verify-otp`,
-        { email, otp }
-      );
+      const res = await apiClient.post("/verify-otp", { email, otp });
       if (res.status === 200) {
         toast.success("OTP verified successfully", { duration: 2000 });
         // Proceed with user registration
-        await axios.post(`${process.env.REACT_APP_BACKEND_URL}/signup`, user);
+        await apiClient.post("/signup", user);
         toast.success("User registered successfully. Please log in.", { duration: 2000 });
         navigate("/login", { replace: true });
       } else {

@@ -9,6 +9,7 @@ import Register from "./pages/Register";
 import Login from "./pages/Login";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import apiClient from "./utils/apiClient";
 import React from "react";
 import Chat from "./pages/Chat";
 import Myanswers from "./pages/Myanswers";
@@ -63,11 +64,8 @@ const Layout = () => {
       console.log("users", users);
       dispatch(addUsers(users));
     });
-    //console.log("backend url", process.env.REACT_APP_BACKEND_URL);
     const getUsers = async () => {
-      const res = await axios.get(
-        `${process.env.REACT_APP_BACKEND_URL}/allusers`
-      );
+      const res = await apiClient.get("/allusers");
       setUsers(res.data);
     };
     getUsers();

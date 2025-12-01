@@ -1,0 +1,12 @@
+# Placeholder Android project directory for Capacitor.
+# Run `npm run build` in the frontend, then:
+#   npx cap sync android
+#   npx cap open android
+
+**/build/
+**/.gradle/
+**/.idea/
+local.properties
+*.iml
+
+

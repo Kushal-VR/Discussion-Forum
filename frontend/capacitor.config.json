@@ -1,0 +1,11 @@
+{
+  "appId": "com.discuza.app",
+  "appName": "Discuza",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http"
+  }
+}
+
+

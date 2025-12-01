@@ -11,15 +11,11 @@ const Send = ({ answer, questionId, setAnswer }) => {
 
   const mutation = useMutation({
     mutationKey: ["new-answer"],
-    mutationFn: (id) => {
-      return newRequests.post(
-        `${process.env.REACT_APP_BACKEND_URL}/answer/${id}`,
-        {
-          answer,
-          userId: JSON.parse(localStorage.getItem("user"))._id,
-        }
-      );
-    },
+    mutationFn: (id) =>
+      newRequests.post(`/answer/${id}`, {
+        answer,
+        userId: JSON.parse(localStorage.getItem("user"))._id,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries(["getAllQuestions"]);
       setAnswer("");

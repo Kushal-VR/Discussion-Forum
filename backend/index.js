@@ -23,16 +23,19 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 let indexInitialized = false;
 
+// Centralize allowed origins so Express CORS and Socket.IO use the same list
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5000",
+  "http://10.0.2.2:5000",
+  "capacitor://localhost",
+  "https://discuza.in",
+];
+
 app.use(express.json());
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5000",
-      "http://10.0.2.2:5000", // Android emulator to backend
-      "capacitor://localhost", // Capacitor mobile apps
-      "https://discuza.in",
-    ],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -92,6 +95,13 @@ app.post("/send-reset-otp", (req, res) => {
   // Use a separate key for reset OTPs so they don't conflict with registration OTPs
   otpStore[`reset_${email}`] = otp;
 
+  const hasEmailConfig = process.env.EMAIL && process.env.EMAIL_PASSWORD;
+  // Development fallback: don't require real email credentials
+  if (!hasEmailConfig && process.env.NODE_ENV === "development") {
+    console.log(`DEV: Reset OTP for ${email}: ${otp}`);
+    return res.status(200).json({ message: "OTP sent (dev mode)", otp });
+  }
+
   // Configure nodemailer transporter
   const transporter = nodemailer.createTransport({
     service: "Gmail",
@@ -112,11 +122,13 @@ app.post("/send-reset-otp", (req, res) => {
   // Send email
   transporter.sendMail(mailOptions, (error) => {
     if (error) {
-      console.error("Error sending reset OTP email:", error);
-      return res.status(500).send("Failed to send OTP");
+      console.error("Error sending reset OTP email:", error.message);
+      console.warn(`FALLBACK: Reset OTP for ${email}: ${otp}`);
+      // Graceful fallback: return OTP so user can still reset password
+      return res.status(200).json({ message: "OTP sent (email failed, fallback to dev mode)", otp });
     }
     console.log("Password reset OTP email sent to", email);
-    res.status(200).send("OTP sent successfully");
+    res.status(200).json({ message: "OTP sent successfully" });
   });
 });
 
@@ -186,7 +198,6 @@ app.post("/ask-question", upload.single("image"), async (req, res) => {
 
     // Keep inverted index updated
     try {
-      await buildIndexFromQuestions(Question);
       indexQuestionInverted(savedQuestion);
     } catch (e) {
       console.error("Error updating inverted index after ask-question:", e);
@@ -247,6 +258,13 @@ app.post("/send-otp", async (req, res) => {
   const otp = Math.floor(100000 + Math.random() * 900000);
   otpStore[email] = otp;
 
+  const hasEmailConfig = process.env.EMAIL && process.env.EMAIL_PASSWORD;
+  // Development fallback: don't require real email credentials
+  if (!hasEmailConfig && process.env.NODE_ENV === "development") {
+    console.log(`DEV: Registration OTP for ${email}: ${otp}`);
+    return res.status(200).json({ message: "OTP sent (dev mode)", otp });
+  }
+
   // Configure nodemailer transporter
   const transporter = nodemailer.createTransport({
     service: "Gmail",
@@ -267,11 +285,13 @@ app.post("/send-otp", async (req, res) => {
   // Send email
   transporter.sendMail(mailOptions, (error) => {
     if (error) {
-      console.error("Error sending email:", error);
-      return res.status(500).send("Failed to send OTP");
+      console.error("Error sending email:", error.message);
+      console.warn(`FALLBACK: Registration OTP for ${email}: ${otp}`);
+      // Graceful fallback: return OTP so user can still register
+      return res.status(200).json({ message: "OTP sent (email failed, fallback to dev mode)", otp });
     }
     console.log("OTP email sent to", email);
-    res.status(200).send("OTP sent successfully");
+    res.status(200).json({ message: "OTP sent successfully" });
   });
 });
 
@@ -288,10 +308,7 @@ app.post("/verify-otp", (req, res) => {
   res.status(400).send("Invalid OTP");
 });
 
-// Start the server
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
-});
+// Note: server is started once later (below) and Socket.IO is attached to that server.
 
 // general routes
 app.get("/questions", async (req, res) => {
@@ -306,7 +323,8 @@ app.get("/questions", async (req, res) => {
         },
       })
       .populate("userId")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
     return res.status(200).json(questions);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -453,7 +471,8 @@ app.get("/my-questions/:id", async (req, res) => {
       .populate("userId")
       .sort({
         createdAt: -1,
-      });
+      })
+      .lean();
     return res.status(200).json(replies);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -522,7 +541,8 @@ app.get("/find/:topic", async (req, res) => {
         },
       })
       .populate("userId")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(200).json(questions);
   } catch (error) {
@@ -564,7 +584,8 @@ app.get("/api/search", async (req, res) => {
         },
       })
       .populate("userId")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(200).json(questions);
   } catch (error) {
@@ -586,7 +607,8 @@ app.get("/api/trending", async (req, res) => {
           model: "DiscussionUser",
         },
       })
-      .populate("userId");
+      .populate("userId")
+      .lean();
 
     const scoreForQuestion = (q) => {
       const likes = Array.isArray(q.upvote) ? q.upvote.length : 0;
@@ -627,7 +649,7 @@ const server = app.listen(PORT, () => {
 const io = new Server(server, {
   secure: true,
   cors: {
-    origin: "https://discuza.in",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },

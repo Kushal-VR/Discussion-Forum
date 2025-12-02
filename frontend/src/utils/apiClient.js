@@ -7,14 +7,20 @@ import axios from "axios";
 // - http://<your-local-ip>:5000        (real device on same Wi‑Fi)
 // - https://discuza.in                 (production)
 
-const baseURL = process.env.REACT_APP_API_URL;
+// Prefer explicit env var, otherwise fall back to localhost in development
+// Accept either `REACT_APP_API_URL` or legacy `REACT_APP_BACKEND_URL`.
+const envBase = process.env.REACT_APP_API_URL || process.env.REACT_APP_BACKEND_URL;
+const devFallback = "http://localhost:5000";
+const baseURL = envBase || (process.env.NODE_ENV === "development" ? devFallback : undefined);
 
-// You can optionally add a runtime warning in development if baseURL is missing.
-if (!baseURL && process.env.NODE_ENV === "development") {
+if (!baseURL) {
   // eslint-disable-next-line no-console
   console.warn(
-    "REACT_APP_API_URL is not set. Backend API requests will fail until it is configured."
+    "REACT_APP_API_URL is not set. Using relative requests (frontend origin)."
   );
+} else if (process.env.NODE_ENV === "development") {
+  // eslint-disable-next-line no-console
+  console.info(`Using API base URL: ${baseURL}`);
 }
 
 const apiClient = axios.create({

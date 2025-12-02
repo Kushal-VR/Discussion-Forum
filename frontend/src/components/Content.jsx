@@ -18,6 +18,7 @@ const Content = () => {
   const [answer, setAnswer] = React.useState("");
   const [sortBy, setSortBy] = React.useState("newest");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState("");
   const [posts, setPosts] = React.useState([]);
   const [trending, setTrending] = React.useState([]);
 
@@ -25,11 +26,11 @@ const Content = () => {
   const currentUserId = storedUser?._id;
 
   const { isLoading } = useQuery(
-    ["getAllQuestions", topic],
+    ["getAllQuestions", topic, debouncedSearchQuery],
     async () => {
-      if (searchQuery.trim()) {
+      if (debouncedSearchQuery.trim()) {
         const res = await newRequests.get(
-          `/api/search?q=${encodeURIComponent(searchQuery)}`
+          `/api/search?q=${encodeURIComponent(debouncedSearchQuery)}`
         );
         return res.data;
       }
@@ -51,6 +52,14 @@ const Content = () => {
     }
   );
 
+  // Debounce search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   React.useEffect(() => {
     const fetchTrending = async () => {
       try {
@@ -63,7 +72,8 @@ const Content = () => {
     fetchTrending();
   }, []);
 
-  const getSortedPosts = () => {
+  // Memoize sorted posts to avoid re-sorting on every render
+  const sortedPosts = React.useMemo(() => {
     const arr = Array.isArray(posts) ? posts : [];
     return mergeSort(arr, (a, b) => {
       if (sortBy === "newest") {
@@ -84,16 +94,7 @@ const Content = () => {
       }
       return 0;
     });
-  };
-
-  const handleSearch = () => {
-    // Trigger refetch by changing key via searchQuery state
-    // (react-query depends on ["getAllQuestions", topic])
-    // State change will cause the query function to use searchQuery
-    setPosts([]);
-  };
-
-  const sortedPosts = getSortedPosts();
+  }, [posts, sortBy]);
 
   if (isLoading) return <Loading />;
 
@@ -115,7 +116,7 @@ const Content = () => {
             className="flex-1 h-10 px-3 rounded border border-gray-300 outline-none"
           />
           <button
-            onClick={handleSearch}
+            onClick={() => setDebouncedSearchQuery(searchQuery)}
             className="px-4 py-2 rounded bg-purple-600 text-white text-sm"
           >
             Search
@@ -155,7 +156,7 @@ const Content = () => {
         sortedPosts.map((question, index) => {
           return (
             <div
-              key={index}
+              key={question._id}
               className="w-[96%] md:w-[80%] mx-12 flex flex-col 
               items-end  p-3 md:p-4 rounded-md bg-gray-300
                dark:bg-slate-400"

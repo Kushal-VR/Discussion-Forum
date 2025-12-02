@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Discuza</string>
+    <string name="title_activity_main">Discuza</string>
+    <string name="package_name">com.discuza.app</string>
+    <string name="custom_url_scheme">com.discuza.app</string>
+</resources>

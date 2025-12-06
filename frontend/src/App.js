@@ -20,10 +20,11 @@ import { useDispatch, useSelector } from "react-redux";
 import { io } from "socket.io-client";
 import { addUsers } from "./context/onlineSlice";
 import ForgotPassword from "./pages/ForgotPassword";
+import getBackendURL from "./utils/getBackendURL";
 
 const queryClient = new QueryClient();
 
-export const socket = io(`${process.env.REACT_APP_BACKEND_URL}`, {
+export const socket = io(getBackendURL(), {
   withCredentials: true,
   secure: true,
 });

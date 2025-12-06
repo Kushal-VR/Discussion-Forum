@@ -25,17 +25,27 @@ const Login = () => {
     };
 
     try {
+      console.log("Attempting login with:", { email: user.email });
+      console.log("API Base URL:", process.env.REACT_APP_API_URL);
       const res = await apiClient.post("/login", user);
-    
+
       if (res.status === 200) {
         localStorage.setItem("user", JSON.stringify(res.data));
         navigate("/");
         toast.success("Logged in successfully");
       }
     } catch (error) {
-      console.log(error);
+      console.error("Login error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response,
+        request: error.request,
+        code: error.code
+      });
       if (error.response && error.response.data && error.response.data.message) {
         toast.error(error.response.data.message);
+      } else if (error.code === 'ERR_NETWORK') {
+        toast.error("Network error: Cannot connect to server");
       } else {
         toast.error("Something went wrong, please try again!");
       }

@@ -27,6 +27,7 @@ let indexInitialized = false;
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5000",
+  "http://localhost",
   "http://10.0.2.2:5000",
   "capacitor://localhost",
   "https://discuza.in",
@@ -35,7 +36,22 @@ const allowedOrigins = [
 app.use(express.json());
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, postman)
+      if (!origin) return callback(null, true);
+
+      // Check if origin is in allowed list
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        return callback(null, true);
+      }
+
+      // Allow any localhost origin for development
+      if (origin.startsWith('http://localhost')) {
+        return callback(null, true);
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
@@ -249,7 +265,7 @@ let otpStore = {};
 // Send OTP
 app.post("/send-otp", async (req, res) => {
   const { email } = req.body;
-  
+
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     return res.status(400).json({ message: "User already exists with same Email" });
